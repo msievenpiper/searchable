@@ -23,7 +23,7 @@ trait SearchableTrait
     protected $search_bindings = [];
 
     /**
-     * Creates the search scope.
+     * Creates the search scope without restrictions.
      *
      * @param Builder $q
      * @param string $search
@@ -37,23 +37,29 @@ trait SearchableTrait
         return $this->scopeSearchRestricted($q, $search, null, $threshold, $entireText, $entireTextOnly);
     }
 
+    /**
+     * Creates the search scope and applies any restrictions via callable
+     *
+     * @param Builder $q
+     * @param string|bool|null $search
+     * @param Callable $restriction
+     * @param null $threshold
+     * @param bool $entireText
+     * @param bool $entireTextOnly
+     * @return Builder
+     */
     public function scopeSearchRestricted(Builder $q, $search, $restriction, $threshold = null, $entireText = false, $entireTextOnly = false)
     {
+       if (!is_string($search)) { // returns original query if nothing usable was passed in
+           return $q;
+       }
+
+        $search = mb_strtolower(trim($search));
+        $words = $this->getWordsFromString($search);
+
         $query = clone $q;
         $query->select($this->getTable() . '.*');
         $this->makeJoins($query);
-
-       if ($search === false)
-        {
-            return $q;
-        }
-
-        $search = mb_strtolower(trim($search));
-        preg_match_all('/(?:")((?:\\\\.|[^\\\\"])*)(?:")|(\S+)/', $search, $matches);
-        $words = $matches[1];
-        for ($i = 2; $i < count($matches); $i++) {
-            $words = array_filter($words) + $matches[$i];
-        }
 
         $selects = [];
         $this->search_bindings = [];
@@ -85,10 +91,7 @@ trait SearchableTrait
 
         $this->addSelectsToQuery($query, $selects);
 
-        // Default the threshold if no value was passed.
-        if (is_null($threshold)) {
-            $threshold = $relevance_count / count($this->getColumns());
-        }
+        $threshold = is_null($threshold) ?  $relevance_count / count($this->getColumns()) : $threshold; // Default the threshold if no value was passed through.
 
         if (!empty($selects)) {
             $this->filterQueryWithRelevance($query, $selects, $threshold);
@@ -100,19 +103,34 @@ trait SearchableTrait
             $query = $restriction($query);
         }
 
-        $this->mergeQueries($query, $q);
-
-        return $q;
+        return $this->mergeQueries($query, $q);
     }
 
     /**
      * Returns database driver Ex: mysql, pgsql, sqlite.
      *
+     * @param $option
      * @return array
      */
-    protected function getDatabaseDriver() {
+    protected function getDatabaseEnvOption($option) {
         $key = $this->connection ?: Config::get('database.default');
-        return Config::get('database.connections.' . $key . '.driver');
+        return Config::get('database.connections.' . $key . '.' . $option);
+    }
+
+    /**
+     * Break a string into it's core words for use later
+     *
+     * @param string $search
+     * @return array
+     */
+    public function getWordsFromString($search)
+    {
+        preg_match_all('/(?:")((?:\\\\.|[^\\\\"])*)(?:")|(\S+)/', $search, $matches);
+        $words = $matches[1];
+        for ($i = 2; $i < count($matches); $i++) {
+            $words = array_filter($words) + $matches[$i];
+        }
+        return $words;
     }
 
     /**
@@ -123,8 +141,7 @@ trait SearchableTrait
     protected function getColumns()
     {
         if (array_key_exists('columns', $this->searchable)) {
-            $driver = $this->getDatabaseDriver();
-            $prefix = Config::get("database.connections.$driver.prefix");
+            $prefix = $this->getDatabaseEnvOption('prefix');
             $columns = [];
             foreach($this->searchable['columns'] as $column => $priority){
                 $columns[$prefix . $column] = $priority;
@@ -195,7 +212,7 @@ trait SearchableTrait
         if ($groupBy = $this->getGroupBy()) {
             $query->groupBy($groupBy);
         } else {
-            $driver = $this->getDatabaseDriver();
+            $driver = $this->getDatabaseEnvOption('driver');
 
             if ($driver == 'sqlsrv') {
                 $columns = $this->getTableColumns();
@@ -322,6 +339,7 @@ trait SearchableTrait
      *
      * @param Builder $clone
      * @param Builder $original
+     * @return Builder
      */
     protected function mergeQueries(Builder $clone, Builder $original) {
         $tableName = DB::connection($this->connection)->getTablePrefix() . $this->getTable();
@@ -339,7 +357,7 @@ trait SearchableTrait
 
         // Then apply bindings WITHOUT global scopes which are already included. If not, there is a strange behaviour
         // with some scope's bindings remaining
-        $original->withoutGlobalScopes()->setBindings($mergedBindings);
+        return $original->withoutGlobalScopes()->setBindings($mergedBindings);
     }
 
     /**

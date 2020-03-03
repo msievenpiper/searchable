@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 
 /**
  * Trait SearchableTrait
+ *
  * @package Nicolaslopezj\Searchable
  * @property array $searchable
  * @property string $table
@@ -24,12 +25,12 @@ trait SearchableTrait
     /**
      * Creates the search scope.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $q
+     * @param Builder $q
      * @param string $search
      * @param float|null $threshold
      * @param  boolean $entireText
      * @param  boolean $entireTextOnly
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @return Builder
      */
     public function scopeSearch(Builder $q, $search, $threshold = null, $entireText = false, $entireTextOnly = false)
     {
@@ -171,7 +172,7 @@ trait SearchableTrait
     /**
      * Adds the sql joins to the query.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Builder $query
      */
     protected function makeJoins(Builder $query)
     {
@@ -188,7 +189,7 @@ trait SearchableTrait
     /**
      * Makes the query not repeat the results.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Builder $query
      */
     protected function makeGroupBy(Builder $query)
     {
@@ -220,7 +221,7 @@ trait SearchableTrait
     /**
      * Puts all the select clauses to the main query.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Builder $query
      * @param array $selects
      */
     protected function addSelectsToQuery(Builder $query, array $selects)
@@ -233,7 +234,7 @@ trait SearchableTrait
     /**
      * Adds the relevance filter to the query.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Builder $query
      * @param array $selects
      * @param float $relevance_count
      */
@@ -257,7 +258,7 @@ trait SearchableTrait
     /**
      * Returns the search queries for the specified column.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Builder $query
      * @param string $column
      * @param float $relevance
      * @param array $words
@@ -277,11 +278,10 @@ trait SearchableTrait
     /**
      * Returns the sql string for the given parameters.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Builder $query
      * @param string $column
      * @param string $relevance
      * @param array $words
-     * @param string $compare
      * @param float $relevance_multiplier
      * @param string $pre_word
      * @param string $post_word
@@ -323,8 +323,8 @@ trait SearchableTrait
     /**
      * Merge our cloned query builder with the original one.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $clone
-     * @param \Illuminate\Database\Eloquent\Builder $original
+     * @param Builder $clone
+     * @param Builder $original
      */
     protected function mergeQueries(Builder $clone, Builder $original) {
         $tableName = DB::connection($this->connection)->getTablePrefix() . $this->getTable();

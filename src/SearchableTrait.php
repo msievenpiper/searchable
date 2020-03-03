@@ -64,15 +64,15 @@ trait SearchableTrait
             $relevance_count += $relevance;
 
             if (!$entireTextOnly) {
-                $queries = $this->getSearchQueriesForColumn($query, $column, $relevance, $words);
+                $queries = $this->getSearchQueriesForColumn($column, $relevance, $words);
             } else {
                 $queries = [];
             }
 
             if ( ($entireText === true && count($words) > 1) || $entireTextOnly === true )
             {
-                $queries[] = $this->getSearchQuery($query, $column, $relevance, [$search], 50, '', '');
-                $queries[] = $this->getSearchQuery($query, $column, $relevance, [$search], 30, '%', '%');
+                $queries[] = $this->getSearchQuery($column, $relevance, [$search], 50, '', '');
+                $queries[] = $this->getSearchQuery($column, $relevance, [$search], 30, '%', '%');
             }
 
             foreach ($queries as $select)
@@ -138,14 +138,13 @@ trait SearchableTrait
     /**
      * Returns whether or not to keep duplicates.
      *
-     * @return array
+     * @return array|bool
      */
     protected function getGroupBy()
     {
         if (array_key_exists('groupBy', $this->searchable)) {
             return $this->searchable['groupBy'];
         }
-
         return false;
     }
 
@@ -258,19 +257,18 @@ trait SearchableTrait
     /**
      * Returns the search queries for the specified column.
      *
-     * @param Builder $query
      * @param string $column
      * @param float $relevance
      * @param array $words
      * @return array
      */
-    protected function getSearchQueriesForColumn(Builder $query, $column, $relevance, array $words)
+    protected function getSearchQueriesForColumn($column, $relevance, array $words)
     {
         $queries = [];
 
-        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 15);
-        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 5, '', '%');
-        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 1, '%', '%');
+        $queries[] = $this->getSearchQuery($column, $relevance, $words, 15);
+        $queries[] = $this->getSearchQuery($column, $relevance, $words, 5, '', '%');
+        $queries[] = $this->getSearchQuery($column, $relevance, $words, 1, '%', '%');
 
         return $queries;
     }
@@ -278,7 +276,6 @@ trait SearchableTrait
     /**
      * Returns the sql string for the given parameters.
      *
-     * @param Builder $query
      * @param string $column
      * @param string $relevance
      * @param array $words
@@ -287,7 +284,7 @@ trait SearchableTrait
      * @param string $post_word
      * @return string
      */
-    protected function getSearchQuery(Builder $query, $column, $relevance, array $words, $relevance_multiplier, $pre_word = '', $post_word = '')
+    protected function getSearchQuery($column, $relevance, array $words, $relevance_multiplier, $pre_word = '', $post_word = '')
     {
         $like_comparator = $this->getDatabaseDriver() == 'pgsql' ? 'ILIKE' : 'LIKE';
         $cases = [];
@@ -341,7 +338,7 @@ trait SearchableTrait
         );
 
         // Then apply bindings WITHOUT global scopes which are already included. If not, there is a strange behaviour
-        // with some scope's bindings remaning
+        // with some scope's bindings remaining
         $original->withoutGlobalScopes()->setBindings($mergedBindings);
     }
 
@@ -355,8 +352,6 @@ trait SearchableTrait
         if (isset($this->relevanceField) ? $this->relevanceField: false) {
             return $this->relevanceField;
         }
-
-        // If property $this->relevanceField is not setted, return the default
         return 'relevance';
     }
 }

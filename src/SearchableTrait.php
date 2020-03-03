@@ -388,9 +388,6 @@ trait SearchableTrait
      */
     protected function getRelevanceField()
     {
-        if (isset($this->relevanceField) ? $this->relevanceField: false) {
-            return $this->relevanceField;
-        }
-        return 'relevance';
+        return isset($this->relevanceField) ? $this->relevanceField : 'relevance';
     }
 }

@@ -1,28 +1,78 @@
-Searchable, a search trait for Laravel
+Searchable, the search method for Laravel
 ==========================================
 
-Searchable is a trait for Laravel 4.2+ and Laravel 5.0 that adds a simple search function to Eloquent Models.
+Searchable is a trait for Laravel that adds a simple search function to Eloquent Models.
 
-Searchable allows you to perform searches in a table giving priorities to each field for the table and it's relations.
-
-This is not optimized for big searches, but sometimes you just need to make it simple (Although it is not slow).
+Searchable allows you to perform searches on the models table, and is configurable for columns 
+and even relationships.
 
 # Installation
 
-Simply add the package to your `composer.json` file and run `composer update`.
+Searchable requires laravel 4.2 or higher to function (yes it will work with 7.x), 
+as well as a PHP version higher than 5.4.0.
+
+Run the composer command: 
+```bash
+composer require nicolaslopezj/searchable
+```
+
+Or simply add the package to your `composer.json` file and run `composer update`.
 
 ```
 "nicolaslopezj/searchable": "1.*"
 ```
 
+Be sure to check the releases page to make sure you get the correct version for your project.
+
 # Usage
 
-Add the trait to your model and your search rules.
+Add the trait to your model and set your search rules like the example below.
 
 ```php
 use Nicolaslopezj\Searchable\SearchableTrait;
 
-class User extends \Eloquent
+class User extends Model
+{
+    use SearchableTrait;
+
+    /**
+     * Searchable rules.
+     *
+     * @var array
+     */
+    protected $searchable = [
+
+        /**
+         * Columns and their priority in search results.
+         * Columns with higher values are more important.
+         * Columns with equal values have equal importance.
+         *
+         * @var array
+         */
+        'columns' => [
+            'first_name' => 10,
+            'last_name' => 10,
+            'bio' => 2,
+            'email' => 5,
+        ]
+
+    ];
+    
+    ...
+}
+```
+
+```php
+// Simple search
+$users = User::search('John')->get();
+```
+
+## Searching with relations
+
+```php
+use Nicolaslopezj\Searchable\SearchableTrait;
+
+class User extends Model
 {
     use SearchableTrait;
 
@@ -64,47 +114,50 @@ Now you can search your model.
 
 ```php
 // Simple search
-$users = User::search($query)->get();
+$users = User::search('John')
+            ->get();
 
-// Search and get relations
-// It will not get the relations if you don't do this
-$users = User::search($query)
+// Make sure if you are getting your relations back for search results you call 
+// with() after search()
+$users = User::search('John')
             ->with('posts')
             ->get();
 ```
 
+## Paginating Search Results
 
-## Search Paginated
-
-As easy as laravel default queries
+You can still use laravel's paginate method on queries.
 
 ```php
 // Search with relations and paginate
-$users = User::search($query)
+$users = User::search('Hello World!')
             ->with('posts')
             ->paginate(20);
 ```
 
-## Mix queries
+## Applying Additional Queries
 
-Search method is compatible with any eloquent method. You can do things like this:
+You can still use all your normal query methods on your models without issue. 
 
 ```php
 // Search only active users
 $users = User::where('status', 'active')
-            ->search($query)
+            ->search('John')
             ->paginate(20);
 ```
 
 ## Custom Threshold
 
-The default threshold for accepted relevance is the sum of all attribute relevance divided by 4.
-To change this value you can pass in a second parameter to search() like so:
+The default threshold for acceptance is calculated via the sum
+of all relevant ratings for each result found divided by the number of search columns. 
+However, if you like to change this to a lower or higher rating you can pass this through the 
+`search` method as an additional param.
 
 ```php
+$threshold = 0; // Set custom threshold for search results
 // Search with lower relevance threshold
 $users = User::where('status', 'active')
-            ->search($query, 0)
+            ->search('John', $threshold)
             ->paginate(20);
 ```
 
@@ -112,18 +165,25 @@ The above, will return all users in order of relevance.
 
 ## Entire Text search
 
-By default, multi-word search terms are split and Searchable searches for each word individually. Relevance plays a role in prioritizing matches that matched on multiple words. If you want to prioritize matches that include the multi-word search (thus, without splitting into words) you can enable full text search by setting the third value to true. Example:
+By default searchable will break any string into it's component "words" and search for each
+within the columns specified. However if you need to look for an exact match to a sentence 
+or phrase you can pass an additional params to the `search` method.
 
+For example:
 ```php
-// Prioritize matches containing "John Doe" above matches containing only "John" or "Doe".
-$users = User::search("John Doe", null, true)->get();
+// Prioritize matches containing "John Doe" above matches that contain only "John" or "Doe".
+$users = User::search("John Doe", $threshold, true)->get();
 ```
 
-If you explicitly want to search for full text matches only, you can disable multi-word splitting by setting the fourth parameter to true.
+By passing true through as the third params you get an exclusive word search, 
+this sorts results that contain the phrase/sentence in the provided string first.
+
+If you explicitly want to search for full text matches only, you can disable multi-word 
+splitting entirely by setting the fourth parameter to true.
 
 ```php
 // Do not include matches that only matched "John" OR "Doe".
-$users = User::search("John Doe", null, true, true)->get();
+$users = User::search("John Doe", $threshold, true, true)->get();
 ```
 
 # How does it work?
@@ -135,7 +195,7 @@ Here is an example query
 ```php
 use Nicolaslopezj\Searchable\SearchableTrait;
 
-class User extends \Eloquent
+class User extends Model
 {
     use SearchableTrait;
 
@@ -158,59 +218,50 @@ class User extends \Eloquent
 
 #### Search:
 ```php
-$search = User::search('Sed neque labore', null, true)->get();
+$search = User::search('John Doe', null, true)->get();
 ```
 
 #### Result:
 ```sql
 select `users`.*, 
 
--- If third parameter is set as true, it will check if the column starts with the search
--- if then it adds relevance * 30
--- this ensures that relevant results will be at top
-(case when first_name LIKE 'Sed neque labore%' then 300 else 0 end) + 
+-- If third parameter is set as true, it will check if the column starts with the specified string.
+-- If the string is an exact match, we take the relevance weight (10) and multiply this by 30.
+(case when first_name LIKE 'John Doe%' then 300 else 0 end) + 
 
--- For each column you specify makes 3 "ifs" containing 
--- each word of the search input and adds relevace to 
--- the row
+-- For each column searchable generates 3 additional queries
+-- These queries check the "words" contained in the search string are with the column and assigns a value to each sceanrio
 
--- The first checks if the column is equal to the word,
--- if then it adds relevance * 15
-(case when first_name LIKE 'Sed' || first_name LIKE 'neque' || first_name LIKE 'labore' then 150 else 0 end) + 
+-- The first checks if the column is equal to any of the words within the search string
+-- if then it adds relevance weight (10) * 15
+(case when first_name LIKE 'John' || first_name LIKE 'Doe' then 150 else 0 end) + 
 
--- The second checks if the column starts with the word,
--- if then it adds relevance * 5
-(case when first_name LIKE 'Sed%' || first_name LIKE 'neque%' || first_name LIKE 'labore%' then 50 else 0 end) + 
+-- The second checks if the column starts with the word, if it does we add the relevance weight * 5
+(case when first_name LIKE 'John%' || first_name LIKE 'Doe%' then 50 else 0 end) + 
 
--- The third checks if the column contains the word, 
--- if then it adds relevance * 1
-(case when first_name LIKE '%Sed%' || first_name LIKE '%neque%' || first_name LIKE '%labore%' then 10 else 0 end) + 
+-- The third checks if the column contains the word in an position, if so it adds relevance weight * 1
+(case when first_name LIKE '%John%' || first_name LIKE '%Doe%' then 10 else 0 end) + 
 
--- Repeats with each column
-(case when last_name LIKE 'Sed' || last_name LIKE 'neque' || last_name LIKE 'labore' then 150 else 0 end) + 
-(case when last_name LIKE 'Sed%' || last_name LIKE 'neque%' || last_name LIKE 'labore%' then 50 else 0 end) +
-(case when last_name LIKE '%Sed%' || last_name LIKE '%neque%' || last_name LIKE '%labore%' then 10 else 0 end) + 
+-- This then repeats for each seach column and calculates based on the relevance weight assigned to each column
 
-(case when bio LIKE 'Sed' || bio LIKE 'neque' || bio LIKE 'labore' then 30 else 0 end) + 
-(case when bio LIKE 'Sed%' || bio LIKE 'neque%' || bio LIKE 'labore%' then 10 else 0 end) + 
-(case when bio LIKE '%Sed%' || bio LIKE '%neque%' || bio LIKE '%labore%' then 2 else 0 end) + 
-
-(case when email LIKE 'Sed' || email LIKE 'neque' || email LIKE 'labore' then 75 else 0 end) + 
-(case when email LIKE 'Sed%' || email LIKE 'neque%' || email LIKE 'labore%' then 25 else 0 end) + 
-(case when email LIKE '%Sed%' || email LIKE '%neque%' || email LIKE '%labore%' then 5 else 0 end) 
-
-as relevance 
+as relevance  -- This is the full sum of relevance based every column
 from `users` 
 group by `id` 
 
 -- Selects only the rows that have more than
--- the sum of all attributes relevances and divided by 4
--- Ej: (20 + 5 + 2) / 4 = 6.75
+-- the threshold set/calculated
 having relevance > 6.75 
 
 -- Orders the results by relevance
 order by `relevance` desc
 ```
+
+## Important Considerations
+This is not optimized for big searches, but sometimes you just need to make it simple 
+(Although it is not slow).
+
+Remember to use indexed columns where appropriate and caching using laravel's 
+cache facade to improve performance of larger queries.
 
 ## Contributing
 

@@ -17,7 +17,20 @@ use Illuminate\Support\Str;
  */
 trait SearchableTrait
 {
+
+    public static $multiplierExactMatch = 50;
+
+    public static $multiplierContainsExactMatch = 30;
+
+    public static $multiplierWordExactMatch = 15;
+
+    public static $multiplierStartsWithWordExactMatch = 10;
+
+    public static $multiplierContainsWordExactMatch = 1;
+
     /**
+     * Builder search params/bindings
+     *
      * @var array
      */
     protected $search_bindings = [];
@@ -77,8 +90,8 @@ trait SearchableTrait
 
             if ( ($entireText === true && count($words) > 1) || $entireTextOnly === true )
             {
-                $queries[] = $this->getSearchQuery($column, $relevance, [$search], 50, '', '');
-                $queries[] = $this->getSearchQuery($column, $relevance, [$search], 30, '%', '%');
+                $queries[] = $this->getSearchQuery($column, $relevance, [$search], static::$multiplierExactMatch, '', '');
+                $queries[] = $this->getSearchQuery($column, $relevance, [$search], static::$multiplierContainsExactMatch, '%', '%');
             }
 
             foreach ($queries as $select)
@@ -110,7 +123,7 @@ trait SearchableTrait
      * Returns database driver Ex: mysql, pgsql, sqlite.
      *
      * @param $option
-     * @return array
+     * @return string
      */
     protected function getDatabaseEnvOption($option) {
         $key = $this->connection ?: Config::get('database.default');
@@ -212,7 +225,7 @@ trait SearchableTrait
         if ($groupBy = $this->getGroupBy()) {
             $query->groupBy($groupBy);
         } else {
-            $driver = $this->getDatabaseEnvOption('driver');
+            $driver = $this->getDatabaseDriver('driver');
 
             if ($driver == 'sqlsrv') {
                 $columns = $this->getTableColumns();
@@ -272,6 +285,14 @@ trait SearchableTrait
     }
 
     /**
+     * @return string
+     */
+    public function getDatabaseDriver()
+    {
+        return $this->getDatabaseEnvOption('driver');
+    }
+
+    /**
      * Returns the search queries for the specified column.
      *
      * @param string $column
@@ -283,9 +304,9 @@ trait SearchableTrait
     {
         $queries = [];
 
-        $queries[] = $this->getSearchQuery($column, $relevance, $words, 15);
-        $queries[] = $this->getSearchQuery($column, $relevance, $words, 5, '', '%');
-        $queries[] = $this->getSearchQuery($column, $relevance, $words, 1, '%', '%');
+        $queries[] = $this->getSearchQuery($column, $relevance, $words, static::$multiplierWordExactMatch);
+        $queries[] = $this->getSearchQuery($column, $relevance, $words, static::$multiplierStartsWithWordExactMatch, '', '%');
+        $queries[] = $this->getSearchQuery($column, $relevance, $words, static::$multiplierContainsWordExactMatch, '%', '%');
 
         return $queries;
     }

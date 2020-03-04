@@ -12,21 +12,23 @@ use Illuminate\Support\Str;
  * @package Nicolaslopezj\Searchable
  * @property array $searchable
  * @property string $table
+ * @property string $connection
  * @property string $primaryKey
+ * @property string $relevanceField
  * @method string getTable()
  */
 trait SearchableTrait
 {
 
-    public static $multiplierExactMatch = 50;
+    protected static $multiplierExactMatch = 50;
 
-    public static $multiplierContainsExactMatch = 30;
+    protected static $multiplierContainsExactMatch = 30;
 
-    public static $multiplierWordExactMatch = 15;
+    protected static $multiplierWordExactMatch = 15;
 
-    public static $multiplierStartsWithWordExactMatch = 10;
+    protected static $multiplierStartsWithWordExactMatch = 10;
 
-    public static $multiplierContainsWordExactMatch = 1;
+    protected static $multiplierContainsWordExactMatch = 1;
 
     /**
      * Builder search params/bindings
@@ -225,7 +227,7 @@ trait SearchableTrait
         if ($groupBy = $this->getGroupBy()) {
             $query->groupBy($groupBy);
         } else {
-            $driver = $this->getDatabaseDriver('driver');
+            $driver = $this->getDatabaseDriver();
 
             if ($driver == 'sqlsrv') {
                 $columns = $this->getTableColumns();
